@@ -7,6 +7,7 @@
 #include <set>
 #include <map>
 #include "csvstream.hpp"
+
 using namespace std;
 
 /**Before the classifier can make predictions, it needs to be trained on a set of previously 
@@ -30,6 +31,23 @@ csv examples https://github.com/awdeorio/csvstream
  * long double: Requires 10 bytes in memory, with a precision of up to 19 digits
  * std::log()
  */
+
+class Classifier {
+  private:
+  map<string, int> class_counts;
+  map<string, map<string, int>> word_counts;
+  map<string, double> class_prob;
+  map<string, map<string, double>> word_likely;
+
+  public:
+  void train(const string& train_filename) {
+
+  }
+
+  string predict(const string& post) {
+    return "TBD";
+  }
+};
 
 /**
  * EFFECT: Utilizes a vector of probabilities to calculate and return double probability
