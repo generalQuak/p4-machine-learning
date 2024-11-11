@@ -32,6 +32,9 @@ csv examples https://github.com/awdeorio/csvstream
  * std::log()
  */
 
+/**
+ * Purpose, etc
+ */
 class Classifier {
   private:
   map<string, int> class_counts;
