@@ -43,8 +43,19 @@ class Classifier {
   map<string, map<string, double>> word_likely;
 
   public:
-  void train(const string& train_filename) {
+  void train(istream &stream) {  
+    string line;
+    while (getline(stream, line)) {
+      istringstream ss(line);
+      string label, post;
 
+      // Parse labels and content from a line
+      getline(ss, label, ",");
+      getline(ss, post);
+
+      class_counts[label]++;
+
+    }
   }
 
   string predict(const string& post) {
@@ -77,11 +88,11 @@ double probability_of(int numC, int numT) {
  * Default: ln P(w|C) = ln (num sets 'C' & 'w' / num sets  'C')
  */
 double word_prob(int numW, int numT) {
-  if (){
+  if (false){
     //to be reworked then implemented
-  } else if () { return log(1/numT); } //if 'w' doesn't occur in sets T
+  } else if (false) { return log(1/numT); } //if 'w' doesn't occur in sets T
   
-  return log(numW/numT)
+  return log(numW/numT);
 }
 
 /**
