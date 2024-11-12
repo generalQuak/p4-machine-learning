@@ -11,14 +11,14 @@
 using namespace std;
 
 /**Before the classifier can make predictions, it needs to be trained on a set of previously 
- * labeled Piazza posts (e.g. train_small.csv or w16_projects_exam.csv). 
+ * taged Piazza posts (e.g. train_small.csv or w16_projects_exam.csv). 
  * Your application should process each post in the training set, and record the following information:
 
 The total number of posts in the entire training set.
 The number of unique words in the entire training set. (The vocabulary size.)
 For each word 'w', the number of posts in the entire training set that contain 'w'.
-For each label 'C', the number of posts with that label.
-For each label 'C' and word, the number of posts with label that contain 'w'. 
+For each tag 'C', the number of posts with that tag.
+For each tag 'C' and word, the number of posts with tag that contain 'w'. 
 
 
 csv examples https://github.com/awdeorio/csvstream
@@ -32,94 +32,177 @@ csv examples https://github.com/awdeorio/csvstream
  * std::log()
  */
 
+/**
+ * BRIEF: tba
+ * 
+ */
 class Classifier {
   private:
-  map<string, int> class_counts;
-  map<string, map<string, int>> word_counts;
-  map<string, double> class_prob;
-  map<string, map<string, double>> word_likely;
+  // DATA MEMBERS
+  int numT; // Total number of posts in training set
+  map<string, int> vocab; // Every unique word and their counts in training set
+  map<string, int> tag_counts; // Number of times a tag appears in training
+  map<string, double> tag_prob; // Stores the prior probabilities of each tag
+  map<string, map<string, int>> word_counts; // Stores the counts for each word for each tag
+  map<string, map<string, double>> word_prob; // Stores word probabilites for processed values (tag, word, probability)
 
   public:
-  void train(istream &stream) {  
-    string line;
-    while (getline(stream, line)) {
-      istringstream ss(line);
-      string label, post;
 
-      // Parse labels and content from a line
-      getline(ss, label, ",");
-      getline(ss, post);
+  // Constructor to initialize data values 
+  Classifier() : numT(0){} 
 
-      class_counts[label]++;
+  // Destructor
+  ~Classifier() = default;
 
+  // EFFECT: clears variables if need be
+  void initialize() {
+    numT = 0;
+    tag_counts.clear();
+    word_counts.clear();
+    tag_prob.clear();
+    vocab.clear();
+  }
+    
+  /**
+   * REQUIRES: 
+   *
+   * BRIEF: takes input file stream and trains the classifier on the given data stream
+   * 
+   * PARAM: stream 
+   */
+  void train(const string &filename) {  
+    csvstream csvin(filename); 
+    map<string, string> row; // Expected to have "tag" and "content" fields
+
+    while (csvin >> row) {
+      numT++; //Increment total number of posts counted
+      
+      string tag = row["tag"];
+      string content = row["content"]; 
+
+      tag_counts[tag]++; // Increment the count for this tag
+
+      set<string> unique_words_post = unique_words(content);
+
+      // Update word counts for this tag
+      for (const auto& word : unique_words_post) {
+          word_counts[tag][word]++;  // Increment count for the word in this tag
+          vocab[word]++;             // Increment global count for the word in vocab
+      }
+    }
+
+    // log prior init
+    for (const auto& tag_entry : tag_counts) {
+      log_prior(tag_entry.first);
     }
   }
 
-  string predict(const string& post) {
-    return "TBD";
+  /**
+   * BRIEF: takes in a post and makes a prediction
+   * 
+   * PARAM: content of specified post
+   * RETURN: string of the most probable label and log score
+   */
+  pair<string, double> predict(const string &content) {
+    map <string, double> potentials; // to store all tags and potential probabilities (for guessing)
+    set<string> unique_words_post = unique_words(content);
+
+
+    //iterate through each possible tag
+    for (const auto &label : tag_prob){
+      double total_log_prob = label.second; // Start with prior possibility
+
+      // Iterates through each word in post
+      for (const auto& word : unique_words_post) {
+        total_log_prob += word_prob(word, label.first); // log probability from each word
+      }
+
+      potentials[label.first] = total_log_prob;
+    }
+    
+    // ---------------- Makes prediction ---------------------
+    auto maxPair = *potentials.begin(); // initialize maxPair
+    for (const auto& pair : potentials) {
+        if (pair.second > maxPair.second) {
+            maxPair = pair;
+        }
+    }
+
+    return maxPair; // Returns the most probable label and its log score
+  }
+
+
+  /**
+  * REQUIRES: 
+      1) that tag is a valid label in tag_counts and was seen during training 
+      2) that all instances of a word in a label C exists and has a value of at least 1
+  * EFFECT: Returns the  LOGGED probability of a word 'w' in tag 'C' 
+  * Case 1: If 'w' doesn't occur in 'C': ln P(w|C) = ln (num 'w'/num sets T)
+  * Case 2: If 'w' doesn't occur ANYWHERE: ln P(w|C) = ln(1/num sets T)
+  * Case 3: ln P(w|C) = ln (num sets 'C' & 'w' / num sets  'C')
+  */
+  double word_prob(const string &word, const string &tag) {
+    const auto& tag_word_counts = word_counts.at(tag); // tag_word_counts = C
+    bool word_in_vocab = vocab.find(word) != vocab.end();
+
+    // CASE 1: Checks if word is NOT in C but is in vocab
+    if (tag_word_counts.find(word) == tag_word_counts.end() && word_in_vocab){
+      return log(static_cast<double>(vocab[word])/ numT);
+    }
+
+    // CASE 2: Checks if word doesn't occur in vocab
+    if (!word_in_vocab) { 
+      return log(1.0 / numT); 
+    } 
+
+    // CASE 3: word does exist in label C
+    return log(static_cast<double> (tag_word_counts.at(word)) / tag_counts[tag]); //default return
+  }
+
+  /**
+   * REQUIRES: 
+      1) Tag is a valid label in tag_counts and was seen in training
+   * EFFECT: Returns the logged probability of tag 'C' in number of training post 
+   */
+  void log_prior(const string &tag) {
+    auto it = tag_counts.find(tag);
+    if (it == tag_counts.end()) {
+      cout << "Runtime Error: Label not found in training data"
+    }
+    
+    tag_prob[tag] = log(static_cast<double> (tag_counts[tag] / numT));
+  }
+
+
+  /**
+  *  EFFECTS: Return a set of unique whitespace delimited words
+  */ 
+  set<string> unique_words(const string &str) {
+    istringstream source(str);
+    set<string> words;
+    string word;
+    while (source >> word) {
+      words.insert(word);
+    }
+    return words;
   }
 };
-
-/**
- * EFFECT: Utilizes a vector of probabilities to calculate and return double probability
- */
-double calculate_log_probability(const vector<double>& probabilities) {
-    double log_sum = 0.0;
-    for (const auto& p : probabilities) {
-        log_sum += log(p);
-    }
-    return log_sum;
-}
-
-/**
- * EFFECT: Returns the probability of 'C' out of 'T' sets ln 
- */
-double probability_of(int numC, int numT) {
-  return log(numC/numT);
-}
-
-/**
- * EFFECT: Returns the probability of a word 'w' in label 'C' 
- * If 'w' doesn't occur in 'C': ln P(w|C) = ln (num 'w'/num sets T)
- * If 'w' doesn't occur ANYWHERE: ln P(w|C) = ln(1/num sets T)
- * Default: ln P(w|C) = ln (num sets 'C' & 'w' / num sets  'C')
- */
-double word_prob(int numW, int numT) {
-  if (false){
-    //to be reworked then implemented
-  } else if (false) { return log(1/numT); } //if 'w' doesn't occur in sets T
-  
-  return log(numW/numT);
-}
-
-/**
- *  EFFECTS: Return a set of unique whitespace delimited words
-*/ 
-set<string> unique_words(const string &str) {
-  istringstream source(str);
-  set<string> words;
-  string word;
-  while (source >> word) {
-    words.insert(word);
-  }
-  return words;
-}
 
 
 ////////////////////////////////// MAIN FUNCTION ///////////////////////////
 
 int main(int argc, char **argv) {
-  
+
+  // ERROR CHECKING:
+  if (argc != 2 && argc != 3){ 
+    cout << "Usage: classifier.exe TRAIN_FILE [TEST_FILE]" << endl;
+    return 1;
+  }
+
   // Opening file streams
   ifstream trainFile(argv[1]);
   ifstream testFile; //initialize testFile
   if(argc == 3){ testFile.open(argv[2]); } //opens testFile
-
-  // ERROR CHECKING:
-  if (argc != 2 && argc != 3){
-    cout << "Usage: classifier.exe TRAIN_FILE [TEST_FILE]" << endl;
-    return 1;
-  }
 
   // File streams check
   if (!trainFile.is_open()){
@@ -132,7 +215,9 @@ int main(int argc, char **argv) {
     return 1;
   } 
 
-
+  //MAIN IMPLEMENTATION
+  Classifier classifier;
+  classifier.train(argv[1]);
 
   return 0;
 }
