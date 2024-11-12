@@ -22,6 +22,11 @@ For each tag 'C' and word, the number of posts with tag that contain 'w'.
 
 
 csv examples https://github.com/awdeorio/csvstream
+./classifier.exe train_small.csv > train_small_train_only.out
+diff -y -B train_small_train_only.out train_small_train_only.out.correct | less  # q to quit
+
+./classifier.exe train_small.csv test_small.csv > test_small.out
+diff -y -B test_small.out test_small.out.correct | less  # q to quit
  */
 
 
@@ -40,6 +45,7 @@ class Classifier {
   private:
   // DATA MEMBERS
   int numT; // Total number of posts in training set
+  vector<string> content; // Stores the content from each post
   map<string, int> vocab; // Every unique word and their counts in training set
   map<string, int> tag_counts; // Number of times a tag appears in training
   map<string, double> tag_prob; // Stores the prior probabilities of each tag
@@ -62,6 +68,7 @@ class Classifier {
     word_counts.clear();
     tag_prob.clear();
     vocab.clear();
+    content.clear();
   }
     
   /**
@@ -266,9 +273,12 @@ int main(int argc, char **argv) {
     int numT = classifier.get_numT();
     cout << "training data:" << endl;
     
-    // Iterates through every given training label
-    for (int i = 0; i < numT; i++) {
-      string label, content;
+    //CSV Stream
+    csvstream csvin(argv[1]);
+    map<string, string> row; // tag and content
+    while (csvin >> row) {
+      string label = row["tag"];
+      string content = row["content"];
       cout << "  label = " << label << ", content = " << content << endl;
     }
     cout << "trained on " << numT << " examples" << endl;
@@ -283,7 +293,8 @@ int main(int argc, char **argv) {
       const string& label = pair.first;
       int label_count = classifier.get_tag_counts().at(label);
       double log_value = pair.second;
-      cout << "  " << label << ", " << label_count << ", log-prior = " << log_value << endl;
+      cout << "  " << label << ", " << label_count  
+        << " examples" << ", log-prior = " << log_value << endl;
     }
 
     // SECTION 3
@@ -291,14 +302,15 @@ int main(int argc, char **argv) {
     cout << "classifier parameters:" << endl;
     // Iterates through each label
     const auto& word_counts = classifier.get_word_counts();
-    for (const auto& tag : classifier.get_tag_counts()) {
+    for (const auto& tag : classifier.get_word_counts()) {      
       const string& label = tag.first;
       // Iterates through each word in label
-      for (const auto& pair : tag.second) {
-        const string& word = pair.first;
-        int count = word_counts.at(label).at(word);
-        double log_value = pair.second;
-        cout << label << ":" << word << ", count = " << count << ", log-likelihood = " << log_value << endl;
+      for (const auto& word_entry : tag.second) {
+
+        const string& word = word_entry.first;
+        double log_value = classifier.cal_word_prob(word, label);
+        cout << "  " << label << ":" << word << ", count = " 
+          << word_counts.at(label).at(word) << ", log-likelihood = " << log_value << endl;
       }
     }
     cout << endl; // Extra line as per spec    
@@ -321,7 +333,8 @@ int main(int argc, char **argv) {
       string content = row["content"];
 
       const auto& prediction = classifier.predict(content);
-      cout << "  correct = " << correct_tag << prediction.first << ", log-probability score = " << prediction.second << endl;
+      cout << "  correct = " << correct_tag << ", predicted = "
+        << prediction.first << ", log-probability score = " << prediction.second << endl;
       if (correct_tag == prediction.first) { ++numC;} // Tracks the number correct predictions
       cout << "  content = " << content << endl << endl; // extra line as per spec
       ++numP;
