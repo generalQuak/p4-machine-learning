@@ -33,24 +33,24 @@ csv examples https://github.com/awdeorio/csvstream
  */
 
 /**
- * BRIEF: tba
+ * BRIEF: Class that holds necessary data for calculating the probability of a label.
  * 
  */
 class Classifier {
   private:
   // DATA MEMBERS
   int numT; // Total number of posts in training set
-  int numV; // Number of unique words in vocab
   map<string, int> vocab; // Every unique word and their counts in training set
   map<string, int> tag_counts; // Number of times a tag appears in training
   map<string, double> tag_prob; // Stores the prior probabilities of each tag
   map<string, map<string, int>> word_counts; // Stores the counts for each word for each tag
-  map<string, map<string, double>> word_prob; // Stores word probabilites for processed values (tag, word, probability)
+  map<string, map<string, double>> word_prob; 
+  // Stores word probabilites for processed values (tag, word, probability)
 
   public:
 
   // Constructor to initialize data values 
-  Classifier() : numT(0), numV(0) {} 
+  Classifier() : numT(0) {} 
 
   // Destructor
   ~Classifier() = default;
@@ -58,7 +58,6 @@ class Classifier {
   // EFFECT: clears variables if need be
   void initialize() {
     numT = 0;
-    numV = 0;
     tag_counts.clear();
     word_counts.clear();
     tag_prob.clear();
@@ -72,7 +71,7 @@ class Classifier {
    * 
    * PARAM: stream 
    */
-  void train(const string &filename) {  
+  void train(const string& filename) {  
     csvstream csvin(filename); 
     map<string, string> row; // Expected to have "tag" and "content" fields
 
@@ -91,7 +90,6 @@ class Classifier {
           word_counts[tag][word]++;  // Increment count for the word in this tag
           vocab[word]++;             // Increment global count for the word in vocab
       }
-      numV = vocab.size();
     }
 
     // log prior init
@@ -106,13 +104,13 @@ class Classifier {
    * PARAM: content of specified post
    * RETURN: string of the most probable label and log score
    */
-  pair<string, double> predict(const string &content) {
+  pair<string, double> predict(const string& content) {
     map <string, double> potentials; // to store all tags and potential probabilities (for guessing)
     set<string> unique_words_post = unique_words(content);
 
 
     // Iterate through each possible tag
-    for (const auto &label : tag_prob){
+    for (const auto& label : tag_prob){
       double total_log_prob = label.second; // Start with prior possibility
 
       // Iterates through each word in post
@@ -124,7 +122,7 @@ class Classifier {
     }
     
     // ---------------- Makes prediction ---------------------
-    auto maxPair = *potentials.begin(); // initialize maxPair
+    pair<std::string, double> maxPair = *potentials.begin(); // initialize maxPair
     for (const auto& pair : potentials) {
         if (pair.second > maxPair.second) {
             maxPair = pair;
@@ -145,7 +143,7 @@ class Classifier {
   * Case 2: If 'w' doesn't occur ANYWHERE: ln P(w|C) = ln(1/num sets T)
   * Case 3: ln P(w|C) = ln (num sets 'C' & 'w' / num sets  'C')
   */
-  double cal_word_prob(const string &word, const string &tag) {
+  double cal_word_prob(const string& word, const string& tag) {
     const auto& tag_word_counts = word_counts.at(tag); // tag_word_counts = C
     bool word_in_vocab = vocab.find(word) != vocab.end();
 
@@ -168,7 +166,7 @@ class Classifier {
       1) Tag is a valid label in tag_counts and was seen in training
    * EFFECT: Returns the logged probability of tag 'C' in number of training post 
    */
-  void log_prior(const string &tag) {
+  void log_prior(const string& tag) {
     auto it = tag_counts.find(tag);
     if (it == tag_counts.end()) {
       cout << "Runtime Error: Label not found in training data";
@@ -181,7 +179,7 @@ class Classifier {
   /**
    * EFFECTS: Return a set of unique whitespace delimited words
   */ 
-  set<string> unique_words(const string &str) {
+  set<string> unique_words(const string& str) {
     istringstream source(str);
     set<string> words;
     string word;
@@ -191,16 +189,33 @@ class Classifier {
     return words;
   }
   
+  // ACCESSOR FUNCTIONS
   /**
    * EFFECTS: Return the number of posts in training
   */
-  int* get_numT() {
-    return &numT;
+  int get_numT() const {
+    return numT;
   } 
-  int* get_numV() {
-    return &numV;
+
+  int get_numV() const{
+    return vocab.size();
   }
 
+  const map<string, int>& get_tag_counts() const {
+    return tag_counts;
+  }
+
+  const map<string, double>& get_tag_prob() const {
+    return tag_prob;
+  }
+
+  const map<string, map<string, int>>& get_word_counts() const {
+    return word_counts;
+  }
+
+  const map<string, map<string, double>>& get_word_prob() const{
+    return word_prob;
+  }
    
 };
 
@@ -248,7 +263,7 @@ int main(int argc, char **argv) {
   // TRAINING ONLY
   if(trainOnly){
     // SECTION 1
-    int numT = classifier.numT();
+    int numT = classifier.get_numT();
     cout << "training data:" << endl;
     
     // Iterates through every given training label
@@ -257,48 +272,62 @@ int main(int argc, char **argv) {
       cout << "  label = " << label << ", content = " << content << endl;
     }
     cout << "trained on " << numT << " examples" << endl;
-    cout << "vocabulary size = " << classifier.numV() << endl;
+    cout << "vocabulary size = " << classifier.get_numV() << endl;
     cout << endl; // additional blank line as per spec
 
     // SECTION 2
 
     cout << "classes:" << endl;
     // Iterates through each label
-    for (const auto label : ) {
-      int label_count = 0;
-      double log_value = 0;
+    for (const auto& pair : classifier.get_tag_prob()) {
+      const string& label = pair.first;
+      int label_count = classifier.get_tag_counts().at(label);
+      double log_value = pair.second;
       cout << "  " << label << ", " << label_count << ", log-prior = " << log_value << endl;
     }
 
+    // SECTION 3
+    
     cout << "classifier parameters:" << endl;
     // Iterates through each label
-    for (const auto label : ) {
+    const auto& word_counts = classifier.get_word_counts();
+    for (const auto& tag : classifier.get_tag_counts()) {
+      const string& label = tag.first;
       // Iterates through each word in label
-      for (const auto word : label) {
-        int count = 0;
-        double log_value = 0;
-        cout << label << ":" << word << ", count = " << count << "log-likelihood = " << log_value << endl;
+      for (const auto& pair : tag.second) {
+        const string& word = pair.first;
+        int count = word_counts.at(label).at(word);
+        double log_value = pair.second;
+        cout << label << ":" << word << ", count = " << count << ", log-likelihood = " << log_value << endl;
       }
     }
     cout << endl; // Extra line as per spec    
 
+  return 0;
 
   // TEST FILE
   } else {
-    int numC = 0, numT = 0;
+    int numC = 0, numP = 0; // Total Correct Predictions, and Predictions
 
-    cout << "trained on " << numT << " examples" << endl << endl;
+    cout << "trained on " << classifier.get_numT() << " examples" << endl << endl;
+
+    csvstream csvin(argv[2]);
+    map<string, string> row; 
     
     cout << "test data:" << endl;
-    // Iterates though each label
-    for (const auto label : ) {
-      string content = "";
-      const auto prediction = classifier.predict();
-      cout << "  correct = " << label << prediction.first << ", log-probability score = " << prediction.second << endl;
+    // Iterates though each post by row in test data
+    while (csvin >> row) {
+      string correct_tag = row["tag"];
+      string content = row["content"];
+
+      const auto& prediction = classifier.predict(content);
+      cout << "  correct = " << correct_tag << prediction.first << ", log-probability score = " << prediction.second << endl;
+      if (correct_tag == prediction.first) { ++numC;} // Tracks the number correct predictions
       cout << "  content = " << content << endl << endl; // extra line as per spec
+      ++numP;
     }
 
-    cout << "performance: " << numC << " / " << numT << " posts predicted correctly" << endl;
+    cout << "performance: " << numC << " / " << numP << " posts predicted correctly" << endl;
   }
 
   return 0;
