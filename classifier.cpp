@@ -40,6 +40,7 @@ class Classifier {
   private:
   // DATA MEMBERS
   int numT; // Total number of posts in training set
+  int numV; // Number of unique words in vocab
   map<string, int> vocab; // Every unique word and their counts in training set
   map<string, int> tag_counts; // Number of times a tag appears in training
   map<string, double> tag_prob; // Stores the prior probabilities of each tag
@@ -49,7 +50,7 @@ class Classifier {
   public:
 
   // Constructor to initialize data values 
-  Classifier() : numT(0){} 
+  Classifier() : numT(0), numV(0) {} 
 
   // Destructor
   ~Classifier() = default;
@@ -57,6 +58,7 @@ class Classifier {
   // EFFECT: clears variables if need be
   void initialize() {
     numT = 0;
+    numV = 0;
     tag_counts.clear();
     word_counts.clear();
     tag_prob.clear();
@@ -89,6 +91,7 @@ class Classifier {
           word_counts[tag][word]++;  // Increment count for the word in this tag
           vocab[word]++;             // Increment global count for the word in vocab
       }
+      numV = vocab.size();
     }
 
     // log prior init
@@ -108,13 +111,13 @@ class Classifier {
     set<string> unique_words_post = unique_words(content);
 
 
-    //iterate through each possible tag
+    // Iterate through each possible tag
     for (const auto &label : tag_prob){
       double total_log_prob = label.second; // Start with prior possibility
 
       // Iterates through each word in post
       for (const auto& word : unique_words_post) {
-        total_log_prob += word_prob(word, label.first); // log probability from each word
+        total_log_prob += cal_word_prob(word, label.first); // log probability from each word
       }
 
       potentials[label.first] = total_log_prob;
@@ -136,12 +139,13 @@ class Classifier {
   * REQUIRES: 
       1) that tag is a valid label in tag_counts and was seen during training 
       2) that all instances of a word in a label C exists and has a value of at least 1
+      3) that numT is atleast 1 or greater
   * EFFECT: Returns the  LOGGED probability of a word 'w' in tag 'C' 
   * Case 1: If 'w' doesn't occur in 'C': ln P(w|C) = ln (num 'w'/num sets T)
   * Case 2: If 'w' doesn't occur ANYWHERE: ln P(w|C) = ln(1/num sets T)
   * Case 3: ln P(w|C) = ln (num sets 'C' & 'w' / num sets  'C')
   */
-  double word_prob(const string &word, const string &tag) {
+  double cal_word_prob(const string &word, const string &tag) {
     const auto& tag_word_counts = word_counts.at(tag); // tag_word_counts = C
     bool word_in_vocab = vocab.find(word) != vocab.end();
 
@@ -156,7 +160,7 @@ class Classifier {
     } 
 
     // CASE 3: word does exist in label C
-    return log(static_cast<double> (tag_word_counts.at(word)) / tag_counts[tag]); //default return
+    return log(static_cast<double> (tag_word_counts.at(word)) / tag_counts[tag]);
   }
 
   /**
@@ -167,15 +171,15 @@ class Classifier {
   void log_prior(const string &tag) {
     auto it = tag_counts.find(tag);
     if (it == tag_counts.end()) {
-      cout << "Runtime Error: Label not found in training data"
+      cout << "Runtime Error: Label not found in training data";
     }
     
-    tag_prob[tag] = log(static_cast<double> (tag_counts[tag] / numT));
+    tag_prob[tag] = log(static_cast<double> (tag_counts[tag]) / numT);
   }
 
 
   /**
-  *  EFFECTS: Return a set of unique whitespace delimited words
+   * EFFECTS: Return a set of unique whitespace delimited words
   */ 
   set<string> unique_words(const string &str) {
     istringstream source(str);
@@ -186,38 +190,116 @@ class Classifier {
     }
     return words;
   }
+  
+  /**
+   * EFFECTS: Return the number of posts in training
+  */
+  int* get_numT() {
+    return &numT;
+  } 
+  int* get_numV() {
+    return &numV;
+  }
+
+   
 };
+
 
 
 ////////////////////////////////// MAIN FUNCTION ///////////////////////////
 
 int main(int argc, char **argv) {
+  cout.precision(3); // setting floating point precision
+  bool trainOnly = argc != 3; //
+
 
   // ERROR CHECKING:
-  if (argc != 2 && argc != 3){ 
+
+  // Checking correct amount of arguments passed.
+  if (argc != 2 && trainOnly){ 
     cout << "Usage: classifier.exe TRAIN_FILE [TEST_FILE]" << endl;
     return 1;
   }
 
-  // Opening file streams
+  // Opening training file stream
   ifstream trainFile(argv[1]);
-  ifstream testFile; //initialize testFile
-  if(argc == 3){ testFile.open(argv[2]); } //opens testFile
-
-  // File streams check
-  if (!trainFile.is_open()){
+  if (!trainFile.is_open()) { // Error handling
     cout << "Error opening file: " << argv[1] << endl;
     return 1;
   }
   
-  if (argc == 3 && !testFile.is_open()) { 
-    cout << "Error opening file: " << argv[2] << endl;
-    return 1;
+  // Open test file stream
+  ifstream testFile; //initialize testFile
+  if(!trainOnly) {
+    testFile.open(argv[2]); //opens testFile
+    if (!testFile.is_open()) { // Error handling
+      cout << "Error opening file: " << argv[2] << endl;
+      return 1;
+    } 
   } 
 
-  //MAIN IMPLEMENTATION
+  // MAIN IMPLEMENTATION
   Classifier classifier;
   classifier.train(argv[1]);
+
+  // Used to store the content 
+  vector<vector<string>> bag_of_words;
+
+  // TRAINING ONLY
+  if(trainOnly){
+    // SECTION 1
+    int numT = classifier.numT();
+    cout << "training data:" << endl;
+    
+    // Iterates through every given training label
+    for (int i = 0; i < numT; i++) {
+      string label, content;
+      cout << "  label = " << label << ", content = " << content << endl;
+    }
+    cout << "trained on " << numT << " examples" << endl;
+    cout << "vocabulary size = " << classifier.numV() << endl;
+    cout << endl; // additional blank line as per spec
+
+    // SECTION 2
+
+    cout << "classes:" << endl;
+    // Iterates through each label
+    for (const auto label : ) {
+      int label_count = 0;
+      double log_value = 0;
+      cout << "  " << label << ", " << label_count << ", log-prior = " << log_value << endl;
+    }
+
+    cout << "classifier parameters:" << endl;
+    // Iterates through each label
+    for (const auto label : ) {
+      // Iterates through each word in label
+      for (const auto word : label) {
+        int count = 0;
+        double log_value = 0;
+        cout << label << ":" << word << ", count = " << count << "log-likelihood = " << log_value << endl;
+      }
+    }
+    cout << endl; // Extra line as per spec    
+
+
+  // TEST FILE
+  } else {
+    int numC = 0, numT = 0;
+
+    cout << "trained on " << numT << " examples" << endl << endl;
+    
+    cout << "test data:" << endl;
+    // Iterates though each label
+    for (const auto label : ) {
+      string content = "";
+      const auto prediction = classifier.predict();
+      cout << "  correct = " << label << prediction.first << ", log-probability score = " << prediction.second << endl;
+      cout << "  content = " << content << endl << endl; // extra line as per spec
+    }
+
+    cout << "performance: " << numC << " / " << numT << " posts predicted correctly" << endl;
+  }
 
   return 0;
 }
