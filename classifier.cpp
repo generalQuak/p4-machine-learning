@@ -43,6 +43,9 @@ class Classifier {
   map<string, map<string, double>> word_likely;
 
   public:
+  Classifier() {
+  }
+
   void train(istream &stream) {  
     string line;
     while (getline(stream, line)) {
@@ -54,8 +57,8 @@ class Classifier {
       getline(ss, post);
 
       class_counts[label]++;
-
     }
+
   }
 
   string predict(const string& post) {
